@@ -3,7 +3,14 @@
     <nav-bar class="home-nav">
       <div slot="center">购物街</div>
     </nav-bar>
-    <scroll class="content" ref="scroll" :probe-type="3" @scroll="contentScroll">
+    <scroll
+      class="content"
+      ref="scroll"
+      :probe-type="3"
+      @scroll="contentScroll"
+      :pull-up-load="true"
+      @pullingUp="loadMore"
+    >
       <home-swiper :banners="banners"></home-swiper>
       <recommend-view :recommends="recommends"></recommend-view>
       <feature-view></feature-view>
@@ -26,7 +33,7 @@ import GoodsList from "components/content/goods/GoodsList";
 import { getHomeMultidata, getHomeGoods } from "network/home";
 
 import Scroll from "components/common/scroll/Scroll";
-import BackTop from "components/content/backTop/BackTop"
+import BackTop from "components/content/backTop/BackTop";
 
 export default {
   name: "Home",
@@ -40,7 +47,7 @@ export default {
         sell: { page: 0, list: [] }
       },
       currentType: "pop",
-      isShowBackTop:true
+      isShowBackTop: true
     };
   },
   computed: {
@@ -65,9 +72,27 @@ export default {
     this.getHomeGoods("pop");
     this.getHomeGoods("new");
     this.getHomeGoods("sell");
+
+    // 监听事件总线事件
+  },
+  mounted() {
+    const refresh = this.debounce(this.$refs.scroll.refresh, 200);
+    this.$bus.$on("itemImageLoad", () => {
+      refresh();
+    });
   },
   methods: {
     // 事件监听
+    // 防止抖动
+    debounce(func, delay) {
+      let timer = null;
+      return function(...args) {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          func.apply(this, args);
+        }, delay);
+      };
+    },
     tabClick(index) {
       switch (index) {
         case 0:
@@ -82,10 +107,13 @@ export default {
       }
     },
     backClick() {
-      this.$refs.scroll.scrollTo(0,0);
+      this.$refs.scroll.scrollTo(0, 0);
     },
-    contentScroll(position) { 
-        this.isShowBackTop = (-position.y) > 1000  ; 
+    contentScroll(position) {
+      this.isShowBackTop = -position.y > 1000;
+    },
+    loadMore() {
+      this.getHomeGoods(this.currentType);
     },
     // 网络请求
     getHomeMultidata() {
@@ -99,7 +127,8 @@ export default {
       getHomeGoods(type, page).then(res => {
         this.goods[type].list.push(...res.data.list);
         this.goods[type].page += 1;
-        //  console.log(JSON.stringify(this.goods['pop'].list) );
+
+        // this.$refs.scroll.finishPullUp();
       });
     }
   }
@@ -108,7 +137,7 @@ export default {
 <style scoped>
 #home {
   padding-top: 44px;
-  height:100vh;
+  height: 100vh;
   position: relative;
 }
 .home-nav {
@@ -125,7 +154,6 @@ export default {
   top: 44px;
 }
 .content {
-  
   position: fixed;
   overflow: hidden;
   top: 44px;
